@@ -57,8 +57,26 @@ export const createDoctorProfile = async (
   });
 };
 
-export const getDoctors = async (_req: Request, res: Response): Promise<void> => {
-  const doctors = await Doctor.find().populate("userId", "name email role");
+export const getDoctors = async (req: Request, res: Response): Promise<void> => {
+  const rawSpecialization = req.query.specialization;
+  const rawLocation = req.query.location;
+
+  const specialization = Array.isArray(rawSpecialization)
+    ? rawSpecialization[0]
+    : rawSpecialization;
+  const location = Array.isArray(rawLocation) ? rawLocation[0] : rawLocation;
+
+  const filters: Record<string, unknown> = {};
+
+  if (typeof specialization === "string" && specialization.trim()) {
+    filters.specialization = { $regex: specialization.trim(), $options: "i" };
+  }
+
+  if (typeof location === "string" && location.trim()) {
+    filters.location = { $regex: location.trim(), $options: "i" };
+  }
+
+  const doctors = await Doctor.find(filters).populate("userId", "name email role");
 
   res.status(200).json({
     success: true,
