@@ -1,22 +1,18 @@
 import type { Request, Response } from "express";
+import { AppError } from "../errors/app-error";
 import { doctorService } from "../services/doctor.service";
 import { suggestDoctorSpecialization } from "../services/ai.service";
+import { createSuccessResponse } from "../utils/api-response";
+import { asyncHandler } from "../utils/async-handler";
+import { suggestDoctorSchema } from "../validators/ai.validator";
 
 const CONFIDENCE_THRESHOLD = 0.6;
 const FALLBACK_SPECIALIZATION = "general physician";
 
-export const suggestDoctor = async (req: Request, res: Response): Promise<void> => {
-  const { symptoms } = req.body as { symptoms?: string };
+export const suggestDoctor = asyncHandler(async (req: Request, res: Response) => {
+  const input = suggestDoctorSchema.parse(req.body);
 
-  if (!symptoms || !symptoms.trim()) {
-    res.status(400).json({
-      success: false,
-      message: "symptoms is required",
-    });
-    return;
-  }
-
-  const rawSuggestion = await suggestDoctorSpecialization(symptoms);
+  const rawSuggestion = await suggestDoctorSpecialization(input.symptoms);
 
   const lowConfidence = rawSuggestion.confidence < CONFIDENCE_THRESHOLD;
   const aiFailed = rawSuggestion.specialization === FALLBACK_SPECIALIZATION;
@@ -48,21 +44,25 @@ export const suggestDoctor = async (req: Request, res: Response): Promise<void> 
     fallbackApplied = true;
   }
 
-  res.status(200).json({
-    success: true,
-    input: {
-      symptoms,
-    },
-    suggestion: {
-      rawSpecialization: rawSuggestion.specialization,
-      confidence: rawSuggestion.confidence,
-      threshold: CONFIDENCE_THRESHOLD,
-      lowConfidence,
-      fallbackApplied,
-      fallbackSpecialization: FALLBACK_SPECIALIZATION,
-      effectiveSpecialization,
-    },
-    count: searchResult.doctors.length,
-    doctors: searchResult.doctors,
-  });
-};
+  res.status(200).json(
+    createSuccessResponse(
+      {
+        input: {
+          symptoms: input.symptoms,
+        },
+        suggestion: {
+          rawSpecialization: rawSuggestion.specialization,
+          confidence: rawSuggestion.confidence,
+          threshold: CONFIDENCE_THRESHOLD,
+          lowConfidence,
+          fallbackApplied,
+          fallbackSpecialization: FALLBACK_SPECIALIZATION,
+          effectiveSpecialization,
+        },
+        count: searchResult.doctors.length,
+        doctors: searchResult.doctors,
+      },
+      "Doctor suggestion generated",
+    ),
+  );
+});

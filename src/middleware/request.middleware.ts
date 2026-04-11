@@ -52,7 +52,7 @@ export const securityMiddleware: RequestHandler[] = [
   express.json({
     limit: "1mb",
     verify: (req, _res, buf) => {
-      if (req.originalUrl?.startsWith("/api/payments/webhook")) {
+      if ((req as any).originalUrl?.startsWith("/api/payments/webhook")) {
         (req as unknown as { rawBody?: Buffer }).rawBody = buf;
       }
     },

@@ -15,6 +15,10 @@ const groqClient = env.GROQ_API_KEY
   ? new Groq({ apiKey: env.GROQ_API_KEY })
   : null;
 
+const AI_TIMEOUT_MS = 10000; // 10 seconds
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000; // 1 second
+
 const parseSuggestion = (content: string | null): DoctorSuggestion => {
   if (!content) {
     return FALLBACK_SUGGESTION;
@@ -45,13 +49,13 @@ const parseSuggestion = (content: string | null): DoctorSuggestion => {
   }
 };
 
-export const suggestDoctorSpecialization = async (
-  symptomsText: string,
-): Promise<DoctorSuggestion> => {
-  if (!symptomsText.trim()) {
-    return FALLBACK_SUGGESTION;
-  }
+const sleep = (ms: number): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, ms));
 
+const attemptSuggestion = async (
+  symptomsText: string,
+  attempt: number = 1,
+): Promise<DoctorSuggestion> => {
   if (!groqClient) {
     return FALLBACK_SUGGESTION;
   }
@@ -62,6 +66,9 @@ export const suggestDoctorSpecialization = async (
   const userPrompt = `Symptoms: ${symptomsText}\n\nRespond as JSON only. Example: {"specialization":"dermatologist","confidence":0.82}`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+
     const completion = await groqClient.chat.completions.create({
       model: env.GROQ_MODEL,
       temperature: 0,
@@ -69,11 +76,30 @@ export const suggestDoctorSpecialization = async (
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+    }, {
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const content = completion.choices[0]?.message?.content ?? null;
     return parseSuggestion(content);
-  } catch {
+  } catch (error) {
+    if (attempt < MAX_RETRIES) {
+      await sleep(RETRY_DELAY_MS * attempt);
+      return attemptSuggestion(symptomsText, attempt + 1);
+    }
+
     return FALLBACK_SUGGESTION;
   }
+};
+
+export const suggestDoctorSpecialization = async (
+  symptomsText: string,
+): Promise<DoctorSuggestion> => {
+  if (!symptomsText.trim()) {
+    return FALLBACK_SUGGESTION;
+  }
+
+  return attemptSuggestion(symptomsText.trim());
 };
