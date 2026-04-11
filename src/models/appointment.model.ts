@@ -15,6 +15,7 @@ export interface IAppointment extends Document {
   date: string;
   time: string;
   consultationType: ConsultationType;
+  meetingLink?: string;
   status: AppointmentStatus;
   amount: number;
   paymentStatus: PaymentStatus;
@@ -50,6 +51,10 @@ const appointmentSchema = new Schema<IAppointment>(
       type: String,
       enum: ["video", "offline"],
       required: true,
+    },
+    meetingLink: {
+      type: String,
+      trim: true,
     },
     status: {
       type: String,

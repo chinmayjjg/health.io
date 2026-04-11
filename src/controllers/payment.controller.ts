@@ -16,6 +16,11 @@ const getRazorpayClient = (): Razorpay | null => {
   });
 };
 
+const generateJitsiMeetingLink = (appointmentId: string): string => {
+  const roomName = `healthio-${appointmentId}`;
+  return `https://meet.jit.si/${roomName}`;
+};
+
 export const createPaymentOrder = async (
   req: Request,
   res: Response,
@@ -138,6 +143,11 @@ export const verifyPayment = async (
   }
 
   if (appointment.status === "booked" && appointment.paymentStatus === "paid") {
+    if (appointment.consultationType === "video" && !appointment.meetingLink) {
+      appointment.meetingLink = generateJitsiMeetingLink(appointment._id.toString());
+      await appointment.save();
+    }
+
     res.status(200).json({
       success: true,
       verified: true,
@@ -212,6 +222,11 @@ export const verifyPayment = async (
   appointment.paymentStatus = "paid";
   appointment.paymentOrderId = razorpay_order_id;
   appointment.paymentId = razorpay_payment_id;
+
+  if (appointment.consultationType === "video") {
+    appointment.meetingLink = generateJitsiMeetingLink(appointment._id.toString());
+  }
+
   await appointment.save();
 
   res.status(200).json({
