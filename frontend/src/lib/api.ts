@@ -22,12 +22,7 @@ const toSearchParams = (query?: Record<string, string>): string => {
   return queryString ? `?${queryString}` : "";
 };
 
-export const apiGet = async <TResponse>(
-  path: string,
-  query?: Record<string, string>,
-): Promise<TResponse> => {
-  const response = await fetch(`${API_BASE_URL}${path}${toSearchParams(query)}`);
-
+const parseResponse = async <TResponse>(response: Response): Promise<TResponse> => {
   const data = (await response.json()) as TResponse & ApiErrorShape;
 
   if (!response.ok) {
@@ -35,6 +30,14 @@ export const apiGet = async <TResponse>(
   }
 
   return data;
+};
+
+export const apiGet = async <TResponse>(
+  path: string,
+  query?: Record<string, string>,
+): Promise<TResponse> => {
+  const response = await fetch(`${API_BASE_URL}${path}${toSearchParams(query)}`);
+  return parseResponse<TResponse>(response);
 };
 
 export const apiPost = async <TResponse>(
@@ -49,11 +52,22 @@ export const apiPost = async <TResponse>(
     body: JSON.stringify(body),
   });
 
-  const data = (await response.json()) as TResponse & ApiErrorShape;
+  return parseResponse<TResponse>(response);
+};
 
-  if (!response.ok) {
-    throw new Error(data?.message || "Request failed");
-  }
+export const apiAuthPost = async <TResponse>(
+  path: string,
+  body: Record<string, unknown>,
+  token: string,
+): Promise<TResponse> => {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
 
-  return data;
+  return parseResponse<TResponse>(response);
 };
