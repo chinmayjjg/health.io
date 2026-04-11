@@ -115,6 +115,8 @@ appointmentSchema.index(
     },
   },
 );
+appointmentSchema.index({ paymentOrderId: 1 }, { unique: true, sparse: true });
+appointmentSchema.index({ paymentId: 1 }, { unique: true, sparse: true });
 
 export const Appointment: Model<IAppointment> = model<IAppointment>(
   "Appointment",

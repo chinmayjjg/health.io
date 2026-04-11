@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import mongoose from "mongoose";
 import type { Request, Response } from "express";
 import { Types } from "mongoose";
 import Razorpay from "razorpay";
@@ -24,6 +25,9 @@ const generateJitsiMeetingLink = (appointmentId: string): string => {
   const roomName = `healthio-${appointmentId}`;
   return `https://meet.jit.si/${roomName}`;
 };
+
+const getRawBody = (req: Request): Buffer | undefined =>
+  (req as unknown as { rawBody?: Buffer }).rawBody;
 
 export const createPaymentOrder = asyncHandler(async (
   req: Request,
@@ -233,6 +237,148 @@ export const verifyPayment = asyncHandler(async (
     createSuccessResponse(
       { verified: true, appointment },
       "Payment verified and booking confirmed",
+    ),
+  );
+});
+
+export const handlePaymentWebhook = asyncHandler(async (
+  req: Request,
+  res: Response,
+) => {
+  const signatureHeader = req.headers["x-razorpay-signature"];
+  const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
+
+  if (!signature || typeof signature !== "string") {
+    throw new AppError("Missing Razorpay webhook signature", 400, {
+      code: "MISSING_WEBHOOK_SIGNATURE",
+    });
+  }
+
+  if (!env.RAZORPAY_WEBHOOK_SECRET) {
+    throw new AppError("Razorpay webhook secret is not configured", 500, {
+      code: "RAZORPAY_WEBHOOK_SECRET_NOT_CONFIGURED",
+    });
+  }
+
+  const rawBody = getRawBody(req);
+  if (!rawBody) {
+    throw new AppError("Raw body is required for webhook verification", 400, {
+      code: "WEBHOOK_RAW_BODY_REQUIRED",
+    });
+  }
+
+  const expectedSignature = crypto
+    .createHmac("sha256", env.RAZORPAY_WEBHOOK_SECRET)
+    .update(rawBody)
+    .digest("hex");
+
+  const signatureBuffer = Buffer.from(signature, "utf8");
+  const expectedBuffer = Buffer.from(expectedSignature, "utf8");
+
+  if (
+    signatureBuffer.length !== expectedBuffer.length ||
+    !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
+  ) {
+    throw new AppError("Invalid Razorpay webhook signature", 400, {
+      code: "INVALID_WEBHOOK_SIGNATURE",
+    });
+  }
+
+  const eventBody = JSON.parse(rawBody.toString("utf-8"));
+  const event = eventBody.event as string;
+  const orderId =
+    eventBody?.payload?.payment?.entity?.order_id ||
+    eventBody?.payload?.order?.entity?.id;
+
+  if (!orderId) {
+    res.status(200).json(
+      createSuccessResponse(
+        { processed: false },
+        "Webhook ignored because order_id was missing",
+      ),
+    );
+    return;
+  }
+
+  const session = await mongoose.startSession();
+  let processed = false;
+
+  try {
+    await session.withTransaction(async () => {
+      const appointment = await Appointment.findOne({
+        paymentOrderId: orderId,
+      }).session(session);
+
+      if (!appointment) {
+        return;
+      }
+
+      if (appointment.status === "booked" && appointment.paymentStatus === "paid") {
+        processed = true;
+        return;
+      }
+
+      if (event === "payment.captured" || event === "order.paid") {
+        const paymentId = eventBody?.payload?.payment?.entity?.id as string | undefined;
+
+        const conflictingBookedAppointment = await Appointment.findOne({
+          _id: { $ne: appointment._id },
+          doctorId: appointment.doctorId,
+          date: appointment.date,
+          time: appointment.time,
+          status: "booked",
+        }).session(session);
+
+        if (conflictingBookedAppointment) {
+          appointment.paymentStatus = "failed";
+          appointment.status = "cancelled";
+          appointment.cancelledAt = new Date();
+          appointment.cancellationReason = "slot_conflict_after_webhook";
+          await appointment.save({ session });
+          processed = true;
+          return;
+        }
+
+        if (appointment.status !== "pending_payment") {
+          processed = true;
+          return;
+        }
+
+        appointment.status = "booked";
+        appointment.paymentStatus = "paid";
+        appointment.paymentId = paymentId;
+        appointment.lockExpiresAt = undefined;
+
+        if (appointment.consultationType === "video") {
+          appointment.meetingLink = generateJitsiMeetingLink(appointment._id.toString());
+        }
+
+        await appointment.save({ session });
+        processed = true;
+        return;
+      }
+
+      if (event === "payment.failed") {
+        if (appointment.status === "pending_payment") {
+          appointment.paymentStatus = "failed";
+          appointment.status = "cancelled";
+          appointment.cancelledAt = new Date();
+          appointment.cancellationReason = "payment_failed";
+          await appointment.save({ session });
+        }
+
+        processed = true;
+        return;
+      }
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  res.status(200).json(
+    createSuccessResponse(
+      { processed },
+      processed ? "Webhook processed" : "Webhook ignored",
     ),
   );
 });

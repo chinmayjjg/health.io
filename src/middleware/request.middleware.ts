@@ -49,7 +49,14 @@ export const securityMiddleware: RequestHandler[] = [
     standardHeaders: true,
     legacyHeaders: false,
   }),
-  express.json({ limit: "1mb" }),
+  express.json({
+    limit: "1mb",
+    verify: (req, _res, buf) => {
+      if (req.originalUrl?.startsWith("/api/payments/webhook")) {
+        (req as unknown as { rawBody?: Buffer }).rawBody = buf;
+      }
+    },
+  }),
   express.urlencoded({ extended: true, limit: "1mb" }),
   cookieParser(),
 ];
