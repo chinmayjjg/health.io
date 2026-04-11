@@ -90,3 +90,45 @@ export const bookAppointment = async (
     appointment,
   });
 };
+
+export const getMyAppointments = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
+    return;
+  }
+
+  let query: Record<string, unknown>;
+
+  if (req.user.role === "patient") {
+    query = { patientId: req.user.userId };
+  } else {
+    const doctorProfile = await Doctor.findOne({ userId: req.user.userId }).select("_id");
+
+    if (!doctorProfile) {
+      res.status(404).json({
+        success: false,
+        message: "Doctor profile not found for this user",
+      });
+      return;
+    }
+
+    query = { doctorId: doctorProfile._id };
+  }
+
+  const appointments = await Appointment.find(query)
+    .sort({ date: 1, time: 1 })
+    .populate({ path: "patientId", select: "name email role" })
+    .populate({ path: "doctorId", select: "specialization location price experience userId" });
+
+  res.status(200).json({
+    success: true,
+    count: appointments.length,
+    appointments,
+  });
+};
