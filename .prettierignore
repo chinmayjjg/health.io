@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+frontend/.next
+frontend/node_modules
+package-lock.json
+frontend/package-lock.json

@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { Doctor } from "../models/doctor.model";
 import { suggestDoctorSpecialization } from "../services/ai.service";
 

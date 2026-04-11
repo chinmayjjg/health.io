@@ -1,6 +1,7 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { Types } from "mongoose";
-import { Appointment, ConsultationType } from "../models/appointment.model";
+import { Appointment } from "../models/appointment.model";
+import type { ConsultationType } from "../models/appointment.model";
 import { Doctor } from "../models/doctor.model";
 
 const getParamId = (value: string | string[] | undefined): string | null => {

@@ -1,145 +1,34 @@
-import bcrypt from "bcryptjs";
-import { Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import { env } from "../config/env";
-import { User, UserRole } from "../models/user.model";
+import type { Request, Response } from "express";
+import { AppError } from "../errors/app-error";
+import type { UserRole } from "../models/user.model";
+import { authService } from "../services/auth.service";
+import { createSuccessResponse } from "../utils/api-response";
+import { asyncHandler } from "../utils/async-handler";
+import { loginSchema, signupSchema } from "../validators/auth.validator";
 
-type AuthPayload = {
-  userId: string;
-  role: UserRole;
-};
+export const signup = asyncHandler(async (req: Request, res: Response) => {
+  const input = signupSchema.parse(req.body);
+  const result = await authService.signup(input);
 
-const generateToken = (payload: AuthPayload): string => {
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: "7d" });
-};
+  res.status(201).json(createSuccessResponse(result, "Signup successful"));
+});
 
-export const signup = async (req: Request, res: Response): Promise<void> => {
-  const { name, email, password, role } = req.body as {
-    name?: string;
-    email?: string;
-    password?: string;
-    role?: UserRole;
-  };
+export const login = asyncHandler(async (req: Request, res: Response) => {
+  const input = loginSchema.parse(req.body);
+  const result = await authService.login(input);
 
-  if (!name || !email || !password) {
-    res.status(400).json({
-      success: false,
-      message: "name, email and password are required",
-    });
-    return;
-  }
+  res.status(200).json(createSuccessResponse(result, "Login successful"));
+});
 
-  if (role && !["patient", "doctor"].includes(role)) {
-    res.status(400).json({
-      success: false,
-      message: "role must be either patient or doctor",
-    });
-    return;
-  }
-
-  const existingUser = await User.findOne({ email: email.toLowerCase() });
-  if (existingUser) {
-    res.status(409).json({
-      success: false,
-      message: "Email is already registered",
-    });
-    return;
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  const user = await User.create({
-    name,
-    email,
-    password: hashedPassword,
-    role: role || "patient",
-  });
-
-  const token = generateToken({
-    userId: user._id.toString(),
-    role: user.role,
-  });
-
-  res.status(201).json({
-    success: true,
-    token,
-  });
-};
-
-export const login = async (req: Request, res: Response): Promise<void> => {
-  const { email, password } = req.body as {
-    email?: string;
-    password?: string;
-  };
-
-  if (!email || !password) {
-    res.status(400).json({
-      success: false,
-      message: "email and password are required",
-    });
-    return;
-  }
-
-  const user = await User.findOne({ email: email.toLowerCase() });
-  if (!user) {
-    res.status(401).json({
-      success: false,
-      message: "Invalid email or password",
-    });
-    return;
-  }
-
-  const isPasswordValid = await bcrypt.compare(password, user.password);
-  if (!isPasswordValid) {
-    res.status(401).json({
-      success: false,
-      message: "Invalid email or password",
-    });
-    return;
-  }
-
-  const token = generateToken({
-    userId: user._id.toString(),
-    role: user.role,
-  });
-
-  res.status(200).json({
-    success: true,
-    token,
-  });
-};
-
-export const getCurrentUser = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+export const getCurrentUser = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
-    res.status(401).json({
-      success: false,
-      message: "Unauthorized",
-    });
-    return;
+    throw new AppError("Unauthorized", 401, { code: "UNAUTHORIZED" });
   }
 
-  const user = await User.findById(req.user.userId).select("-password");
-
-  if (!user) {
-    res.status(404).json({
-      success: false,
-      message: "User not found",
-    });
-    return;
-  }
-
-  res.status(200).json({
-    success: true,
-    user,
-  });
-};
+  const user = await authService.getCurrentUser(req.user.userId);
+  res.status(200).json(createSuccessResponse({ user }));
+});
 
 export const doctorOnlyPing = (_req: Request, res: Response): void => {
-  res.status(200).json({
-    success: true,
-    message: "Doctor access granted",
-  });
+  res.status(200).json(createSuccessResponse({ role: "doctor" as UserRole }, "Doctor access granted"));
 };

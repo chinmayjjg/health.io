@@ -1,6 +1,7 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { Types } from "mongoose";
-import { Doctor, IAvailabilitySlot } from "../models/doctor.model";
+import { Doctor } from "../models/doctor.model";
+import type { IAvailabilitySlot } from "../models/doctor.model";
 
 export const createDoctorProfile = async (
   req: Request,

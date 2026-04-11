@@ -1,4 +1,5 @@
-import { Document, Model, Schema, Types, model } from "mongoose";
+import { Schema, model } from "mongoose";
+import type { Document, Model, Types } from "mongoose";
 
 export interface IAvailabilitySlot {
   date: string;

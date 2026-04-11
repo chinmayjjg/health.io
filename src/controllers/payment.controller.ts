@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { Types } from "mongoose";
 import Razorpay from "razorpay";
 import { env } from "../config/env";
@@ -35,7 +35,9 @@ export const createPaymentOrder = async (
     currency?: string;
   };
 
-  if (!appointmentId || !Types.ObjectId.isValid(appointmentId)) {
+  const normalizedAppointmentId = appointmentId?.trim();
+
+  if (!normalizedAppointmentId || !Types.ObjectId.isValid(normalizedAppointmentId)) {
     res.status(400).json({
       success: false,
       message: "Valid appointmentId is required",
@@ -43,7 +45,7 @@ export const createPaymentOrder = async (
     return;
   }
 
-  const appointment = await Appointment.findById(appointmentId);
+  const appointment = await Appointment.findById(normalizedAppointmentId);
 
   if (!appointment) {
     res.status(404).json({ success: false, message: "Appointment not found" });
@@ -75,7 +77,7 @@ export const createPaymentOrder = async (
   const options = {
     amount: Math.round(Number(appointment.amount) * 100),
     currency,
-    receipt: `appt_${appointment._id.toString()}`,
+    receipt: `appt_${appointment._id.toString()}_${Date.now()}`,
   };
 
   const order = await razorpay.orders.create(options);
@@ -113,7 +115,9 @@ export const verifyPayment = async (
     razorpay_signature?: string;
   };
 
-  if (!appointmentId || !Types.ObjectId.isValid(appointmentId)) {
+  const normalizedAppointmentId = appointmentId?.trim();
+
+  if (!normalizedAppointmentId || !Types.ObjectId.isValid(normalizedAppointmentId)) {
     res.status(400).json({
       success: false,
       message: "Valid appointmentId is required",
@@ -130,7 +134,7 @@ export const verifyPayment = async (
     return;
   }
 
-  const appointment = await Appointment.findById(appointmentId);
+  const appointment = await Appointment.findById(normalizedAppointmentId);
 
   if (!appointment) {
     res.status(404).json({ success: false, message: "Appointment not found" });
@@ -153,6 +157,15 @@ export const verifyPayment = async (
       verified: true,
       message: "Payment already verified and booking confirmed",
       appointment,
+    });
+    return;
+  }
+
+  if (appointment.status !== "pending_payment") {
+    res.status(400).json({
+      success: false,
+      verified: false,
+      message: "Only pending appointments can be verified",
     });
     return;
   }

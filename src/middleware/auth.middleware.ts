@@ -1,7 +1,8 @@
-import { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import jwt, { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
 import { env } from "../config/env";
-import { UserRole } from "../models/user.model";
+import { AppError } from "../errors/app-error";
+import type { UserRole } from "../models/user.model";
 
 type AuthTokenPayload = {
   userId: string;
@@ -10,16 +11,13 @@ type AuthTokenPayload = {
 
 export const authenticate = (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ): void => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({
-      success: false,
-      message: "Authorization token is missing",
-    });
+    next(new AppError("Authorization token is missing", 401, { code: "TOKEN_MISSING" }));
     return;
   }
 
@@ -34,18 +32,12 @@ export const authenticate = (
     next();
   } catch (error) {
     if (error instanceof TokenExpiredError) {
-      res.status(401).json({
-        success: false,
-        message: "Token has expired",
-      });
+      next(new AppError("Token has expired", 401, { code: "TOKEN_EXPIRED" }));
       return;
     }
 
     if (error instanceof JsonWebTokenError) {
-      res.status(401).json({
-        success: false,
-        message: "Invalid token",
-      });
+      next(new AppError("Invalid token", 401, { code: "INVALID_TOKEN" }));
       return;
     }
 
@@ -54,21 +46,18 @@ export const authenticate = (
 };
 
 export const authorizeRoles = (...allowedRoles: UserRole[]) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    
+      next(new AppError("Unauthorized", 401, { code: "UNAUTHORIZED" }));
       return;
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      res.status(403).json({
-        success: false,
-        message: "Forbidden: insufficient permissions",
-      });
+      next(
+        new AppError("Forbidden: insufficient permissions", 403, {
+          code: "INSUFFICIENT_PERMISSIONS",
+        }),
+      );
       return;
     }
 

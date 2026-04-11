@@ -1,6 +1,7 @@
-import { Document, Model, Schema, model } from "mongoose";
+import { Schema, model } from "mongoose";
+import type { Document, Model } from "mongoose";
 
-export type UserRole = "patient" | "doctor";
+export type UserRole = "patient" | "doctor" | "admin";
 
 export interface IUser extends Document {
   name: string;
@@ -32,7 +33,7 @@ const userSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ["patient", "doctor"],
+      enum: ["patient", "doctor", "admin"],
       default: "patient",
       required: true,
     },
@@ -41,5 +42,7 @@ const userSchema = new Schema<IUser>(
     timestamps: true,
   },
 );
+
+userSchema.index({ email: 1 }, { unique: true });
 
 export const User: Model<IUser> = model<IUser>("User", userSchema);
