@@ -36,7 +36,9 @@ export const apiGet = async <TResponse>(
   path: string,
   query?: Record<string, string>,
 ): Promise<TResponse> => {
-  const response = await fetch(`${API_BASE_URL}${path}${toSearchParams(query)}`);
+  const response = await fetch(`${API_BASE_URL}${path}${toSearchParams(query)}`, {
+    credentials: "include",
+  });
   return parseResponse<TResponse>(response);
 };
 
@@ -46,6 +48,7 @@ export const apiPost = async <TResponse>(
 ): Promise<TResponse> => {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -62,6 +65,7 @@ export const apiAuthPost = async <TResponse>(
 ): Promise<TResponse> => {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
