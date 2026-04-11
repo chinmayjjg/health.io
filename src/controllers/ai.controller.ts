@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { Doctor } from "../models/doctor.model";
+import { doctorService } from "../services/doctor.service";
 import { suggestDoctorSpecialization } from "../services/ai.service";
 
 const CONFIDENCE_THRESHOLD = 0.6;
@@ -26,18 +26,25 @@ export const suggestDoctor = async (req: Request, res: Response): Promise<void> 
     : rawSuggestion.specialization.trim();
 
   let effectiveSpecialization = initialSpecialization;
-
-  let doctors = await Doctor.find({
-    specialization: { $regex: effectiveSpecialization, $options: "i" },
-  }).populate("userId", "name email role");
+  let searchResult = await doctorService.searchDoctors({
+    specialization: effectiveSpecialization,
+    page: 1,
+    limit: 8,
+    sortBy: "experience",
+    sortOrder: "desc",
+  });
 
   let fallbackApplied = lowConfidence || aiFailed;
 
-  if (doctors.length === 0 && effectiveSpecialization !== FALLBACK_SPECIALIZATION) {
+  if (searchResult.doctors.length === 0 && effectiveSpecialization !== FALLBACK_SPECIALIZATION) {
     effectiveSpecialization = FALLBACK_SPECIALIZATION;
-    doctors = await Doctor.find({
-      specialization: { $regex: FALLBACK_SPECIALIZATION, $options: "i" },
-    }).populate("userId", "name email role");
+    searchResult = await doctorService.searchDoctors({
+      specialization: FALLBACK_SPECIALIZATION,
+      page: 1,
+      limit: 8,
+      sortBy: "experience",
+      sortOrder: "desc",
+    });
     fallbackApplied = true;
   }
 
@@ -55,7 +62,7 @@ export const suggestDoctor = async (req: Request, res: Response): Promise<void> 
       fallbackSpecialization: FALLBACK_SPECIALIZATION,
       effectiveSpecialization,
     },
-    count: doctors.length,
-    doctors,
+    count: searchResult.doctors.length,
+    doctors: searchResult.doctors,
   });
 };

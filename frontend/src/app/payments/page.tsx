@@ -6,19 +6,24 @@ import { getAuthToken } from "@/lib/auth";
 
 type CreateOrderResponse = {
   success: boolean;
-  appointmentId: string;
-  amount: number;
-  order: {
-    id: string;
+  data: {
+    appointmentId: string;
     amount: number;
-    currency: string;
+    slotHoldExpiresAt?: string;
+    order: {
+      id: string;
+      amount: number;
+      currency: string;
+    };
   };
 };
 
 type VerifyPaymentResponse = {
   success: boolean;
-  verified: boolean;
   message: string;
+  data: {
+    verified: boolean;
+  };
 };
 
 const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "";
@@ -76,13 +81,13 @@ export default function PaymentsPage() {
 
       const razorpay = new window.Razorpay({
         key: RAZORPAY_KEY_ID,
-        amount: createOrderData.order.amount,
-        currency: createOrderData.order.currency,
+        amount: createOrderData.data.order.amount,
+        currency: createOrderData.data.order.currency,
         name: "Health Consultation",
         description: "Appointment Payment",
-        order_id: createOrderData.order.id,
+        order_id: createOrderData.data.order.id,
         notes: {
-          appointmentId: createOrderData.appointmentId,
+          appointmentId: createOrderData.data.appointmentId,
         },
         modal: {
           ondismiss: () => {
@@ -97,7 +102,7 @@ export default function PaymentsPage() {
             const verifyData = await apiAuthPost<VerifyPaymentResponse>(
               "/api/payments/verify",
               {
-                appointmentId: createOrderData.appointmentId,
+                appointmentId: createOrderData.data.appointmentId,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,

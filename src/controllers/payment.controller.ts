@@ -3,7 +3,11 @@ import type { Request, Response } from "express";
 import { Types } from "mongoose";
 import Razorpay from "razorpay";
 import { env } from "../config/env";
+import { AppError } from "../errors/app-error";
 import { Appointment } from "../models/appointment.model";
+import { appointmentService } from "../services/appointment.service";
+import { createSuccessResponse } from "../utils/api-response";
+import { asyncHandler } from "../utils/async-handler";
 
 const getRazorpayClient = (): Razorpay | null => {
   if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
@@ -21,13 +25,12 @@ const generateJitsiMeetingLink = (appointmentId: string): string => {
   return `https://meet.jit.si/${roomName}`;
 };
 
-export const createPaymentOrder = async (
+export const createPaymentOrder = asyncHandler(async (
   req: Request,
   res: Response,
-): Promise<void> => {
+) => {
   if (!req.user) {
-    res.status(401).json({ success: false, message: "Unauthorized" });
-    return;
+    throw new AppError("Unauthorized", 401, { code: "UNAUTHORIZED" });
   }
 
   const { appointmentId, currency = "INR" } = req.body as {
@@ -38,40 +41,34 @@ export const createPaymentOrder = async (
   const normalizedAppointmentId = appointmentId?.trim();
 
   if (!normalizedAppointmentId || !Types.ObjectId.isValid(normalizedAppointmentId)) {
-    res.status(400).json({
-      success: false,
-      message: "Valid appointmentId is required",
+    throw new AppError("Valid appointmentId is required", 400, {
+      code: "INVALID_APPOINTMENT_ID",
     });
-    return;
   }
 
-  const appointment = await Appointment.findById(normalizedAppointmentId);
+  const appointment = await appointmentService.expireAppointmentHoldIfNeeded(
+    normalizedAppointmentId,
+  );
 
   if (!appointment) {
-    res.status(404).json({ success: false, message: "Appointment not found" });
-    return;
+    throw new AppError("Appointment not found", 404, { code: "APPOINTMENT_NOT_FOUND" });
   }
 
   if (appointment.patientId.toString() !== req.user.userId) {
-    res.status(403).json({ success: false, message: "Forbidden" });
-    return;
+    throw new AppError("Forbidden", 403, { code: "FORBIDDEN" });
   }
 
   if (appointment.status !== "pending_payment") {
-    res.status(400).json({
-      success: false,
-      message: "Payment can only be created for pending appointments",
+    throw new AppError("Payment can only be created for pending appointments", 400, {
+      code: "APPOINTMENT_NOT_PENDING_PAYMENT",
     });
-    return;
   }
 
   const razorpay = getRazorpayClient();
   if (!razorpay) {
-    res.status(500).json({
-      success: false,
-      message: "Razorpay keys are not configured",
+    throw new AppError("Razorpay keys are not configured", 500, {
+      code: "RAZORPAY_NOT_CONFIGURED",
     });
-    return;
   }
 
   const options = {
@@ -86,21 +83,25 @@ export const createPaymentOrder = async (
   appointment.paymentStatus = "pending";
   await appointment.save();
 
-  res.status(201).json({
-    success: true,
-    appointmentId: appointment._id,
-    amount: appointment.amount,
-    order,
-  });
-};
+  res.status(201).json(
+    createSuccessResponse(
+      {
+        appointmentId: appointment._id,
+        amount: appointment.amount,
+        order,
+        slotHoldExpiresAt: appointment.lockExpiresAt,
+      },
+      "Payment order created",
+    ),
+  );
+});
 
-export const verifyPayment = async (
+export const verifyPayment = asyncHandler(async (
   req: Request,
   res: Response,
-): Promise<void> => {
+) => {
   if (!req.user) {
-    res.status(401).json({ success: false, message: "Unauthorized" });
-    return;
+    throw new AppError("Unauthorized", 401, { code: "UNAUTHORIZED" });
   }
 
   const {
@@ -118,32 +119,29 @@ export const verifyPayment = async (
   const normalizedAppointmentId = appointmentId?.trim();
 
   if (!normalizedAppointmentId || !Types.ObjectId.isValid(normalizedAppointmentId)) {
-    res.status(400).json({
-      success: false,
-      message: "Valid appointmentId is required",
+    throw new AppError("Valid appointmentId is required", 400, {
+      code: "INVALID_APPOINTMENT_ID",
     });
-    return;
   }
 
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-    res.status(400).json({
-      success: false,
-      message:
-        "razorpay_order_id, razorpay_payment_id and razorpay_signature are required",
-    });
-    return;
+    throw new AppError(
+      "razorpay_order_id, razorpay_payment_id and razorpay_signature are required",
+      400,
+      { code: "INVALID_PAYMENT_VERIFICATION_PAYLOAD" },
+    );
   }
 
-  const appointment = await Appointment.findById(normalizedAppointmentId);
+  const appointment = await appointmentService.expireAppointmentHoldIfNeeded(
+    normalizedAppointmentId,
+  );
 
   if (!appointment) {
-    res.status(404).json({ success: false, message: "Appointment not found" });
-    return;
+    throw new AppError("Appointment not found", 404, { code: "APPOINTMENT_NOT_FOUND" });
   }
 
   if (appointment.patientId.toString() !== req.user.userId) {
-    res.status(403).json({ success: false, message: "Forbidden" });
-    return;
+    throw new AppError("Forbidden", 403, { code: "FORBIDDEN" });
   }
 
   if (appointment.status === "booked" && appointment.paymentStatus === "paid") {
@@ -152,39 +150,31 @@ export const verifyPayment = async (
       await appointment.save();
     }
 
-    res.status(200).json({
-      success: true,
-      verified: true,
-      message: "Payment already verified and booking confirmed",
-      appointment,
-    });
+    res.status(200).json(
+      createSuccessResponse(
+        { verified: true, appointment },
+        "Payment already verified and booking confirmed",
+      ),
+    );
     return;
   }
 
   if (appointment.status !== "pending_payment") {
-    res.status(400).json({
-      success: false,
-      verified: false,
-      message: "Only pending appointments can be verified",
+    throw new AppError("Only pending appointments can be verified", 400, {
+      code: "APPOINTMENT_NOT_PENDING_PAYMENT",
     });
-    return;
   }
 
   if (!env.RAZORPAY_KEY_SECRET) {
-    res.status(500).json({
-      success: false,
-      message: "Razorpay secret is not configured",
+    throw new AppError("Razorpay secret is not configured", 500, {
+      code: "RAZORPAY_NOT_CONFIGURED",
     });
-    return;
   }
 
   if (appointment.paymentOrderId && appointment.paymentOrderId !== razorpay_order_id) {
-    res.status(400).json({
-      success: false,
-      verified: false,
-      message: "Order id does not match this appointment",
+    throw new AppError("Order id does not match this appointment", 400, {
+      code: "PAYMENT_ORDER_MISMATCH",
     });
-    return;
   }
 
   const body = `${razorpay_order_id}|${razorpay_payment_id}`;
@@ -198,15 +188,13 @@ export const verifyPayment = async (
   if (!isValid) {
     appointment.paymentStatus = "failed";
     appointment.status = "cancelled";
+    appointment.cancelledAt = new Date();
+    appointment.cancellationReason = "payment_signature_invalid";
     await appointment.save();
 
-    res.status(400).json({
-      success: false,
-      verified: false,
-      message: "Invalid payment signature",
-      appointment,
+    throw new AppError("Invalid payment signature", 400, {
+      code: "INVALID_PAYMENT_SIGNATURE",
     });
-    return;
   }
 
   const conflictingBookedAppointment = await Appointment.findOne({
@@ -220,19 +208,18 @@ export const verifyPayment = async (
   if (conflictingBookedAppointment) {
     appointment.paymentStatus = "failed";
     appointment.status = "cancelled";
+    appointment.cancelledAt = new Date();
+    appointment.cancellationReason = "slot_conflict_after_payment";
     await appointment.save();
 
-    res.status(409).json({
-      success: false,
-      verified: false,
-      message: "Slot is no longer available",
-      appointment,
+    throw new AppError("Slot is no longer available", 409, {
+      code: "SLOT_ALREADY_RESERVED",
     });
-    return;
   }
 
   appointment.status = "booked";
   appointment.paymentStatus = "paid";
+  appointment.lockExpiresAt = undefined;
   appointment.paymentOrderId = razorpay_order_id;
   appointment.paymentId = razorpay_payment_id;
 
@@ -242,10 +229,10 @@ export const verifyPayment = async (
 
   await appointment.save();
 
-  res.status(200).json({
-    success: true,
-    verified: true,
-    message: "Payment verified and booking confirmed",
-    appointment,
-  });
-};
+  res.status(200).json(
+    createSuccessResponse(
+      { verified: true, appointment },
+      "Payment verified and booking confirmed",
+    ),
+  );
+});

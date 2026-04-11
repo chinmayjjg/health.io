@@ -9,8 +9,10 @@ export interface IAvailabilitySlot {
 export interface IDoctor extends Document {
   userId: Types.ObjectId;
   specialization: string;
+  specializationNormalized: string;
   price: number;
   location: string;
+  locationNormalized: string;
   experience: number;
   availability: IAvailabilitySlot[];
   createdAt: Date;
@@ -48,6 +50,12 @@ const doctorSchema = new Schema<IDoctor>(
       required: true,
       trim: true,
     },
+    specializationNormalized: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+    },
     price: {
       type: Number,
       required: true,
@@ -57,6 +65,12 @@ const doctorSchema = new Schema<IDoctor>(
       type: String,
       required: true,
       trim: true,
+    },
+    locationNormalized: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
     },
     experience: {
       type: Number,
@@ -72,5 +86,14 @@ const doctorSchema = new Schema<IDoctor>(
     timestamps: true,
   },
 );
+
+doctorSchema.index({ userId: 1 }, { unique: true });
+doctorSchema.index({ specializationNormalized: 1 });
+doctorSchema.index({ locationNormalized: 1 });
+doctorSchema.index({ specializationNormalized: 1, locationNormalized: 1 });
+doctorSchema.index({
+  specializationNormalized: "text",
+  locationNormalized: "text",
+});
 
 export const Doctor: Model<IDoctor> = model<IDoctor>("Doctor", doctorSchema);

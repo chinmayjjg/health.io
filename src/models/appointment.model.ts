@@ -7,7 +7,7 @@ export type AppointmentStatus =
   | "cancelled"
   | "completed";
 
-export type PaymentStatus = "pending" | "paid" | "failed";
+export type PaymentStatus = "pending" | "paid" | "failed" | "expired";
 export type ConsultationType = "video" | "offline";
 
 export interface IAppointment extends Document {
@@ -20,8 +20,11 @@ export interface IAppointment extends Document {
   status: AppointmentStatus;
   amount: number;
   paymentStatus: PaymentStatus;
+  lockExpiresAt?: Date;
   paymentOrderId?: string;
   paymentId?: string;
+  cancelledAt?: Date;
+  cancellationReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,9 +73,13 @@ const appointmentSchema = new Schema<IAppointment>(
     },
     paymentStatus: {
       type: String,
-      enum: ["pending", "paid", "failed"],
+      enum: ["pending", "paid", "failed", "expired"],
       default: "pending",
       required: true,
+    },
+    lockExpiresAt: {
+      type: Date,
+      default: undefined,
     },
     paymentOrderId: {
       type: String,
@@ -82,9 +89,30 @@ const appointmentSchema = new Schema<IAppointment>(
       type: String,
       trim: true,
     },
+    cancelledAt: {
+      type: Date,
+      default: undefined,
+    },
+    cancellationReason: {
+      type: String,
+      trim: true,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
+  },
+);
+
+appointmentSchema.index({ doctorId: 1, date: 1, time: 1, status: 1 });
+appointmentSchema.index({ patientId: 1, createdAt: -1 });
+appointmentSchema.index(
+  { doctorId: 1, date: 1, time: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ["pending_payment", "booked", "completed"] },
+    },
   },
 );
 

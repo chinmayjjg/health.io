@@ -35,6 +35,9 @@ type SlotsResponse = {
 type BookAppointmentResponse = {
   success: boolean;
   message: string;
+  data: {
+    slotHoldExpiresAt?: string;
+  };
 };
 
 export default function BookingPage() {
@@ -137,7 +140,10 @@ export default function BookingPage() {
         token,
       );
 
-      setSuccess(response.message || "Booking request created successfully.");
+      const holdMessage = response.data?.slotHoldExpiresAt
+        ? ` Slot held until ${new Date(response.data.slotHoldExpiresAt).toLocaleString()}.`
+        : "";
+      setSuccess((response.message || "Booking request created successfully.") + holdMessage);
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : "Booking failed";

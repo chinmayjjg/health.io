@@ -1,8 +1,13 @@
 import type { Request, Response } from "express";
-import { Types } from "mongoose";
-import { Appointment } from "../models/appointment.model";
-import type { ConsultationType } from "../models/appointment.model";
-import { Doctor } from "../models/doctor.model";
+import { AppError } from "../errors/app-error";
+import { appointmentService } from "../services/appointment.service";
+import { createSuccessResponse } from "../utils/api-response";
+import { asyncHandler } from "../utils/async-handler";
+import {
+  appointmentIdParamSchema,
+  bookAppointmentSchema,
+  rescheduleAppointmentSchema,
+} from "../validators/appointment.validator";
 
 const getParamId = (value: string | string[] | undefined): string | null => {
   if (!value) {
@@ -12,274 +17,75 @@ const getParamId = (value: string | string[] | undefined): string | null => {
   return Array.isArray(value) ? value[0] : value;
 };
 
-export const bookAppointment = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+export const bookAppointment = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
-    res.status(401).json({
-      success: false,
-      message: "Unauthorized",
-    });
-    return;
+    throw new AppError("Unauthorized", 401, { code: "UNAUTHORIZED" });
   }
 
-  const { doctorId, date, time, consultationType } = req.body as {
-    doctorId?: string;
-    date?: string;
-    time?: string;
-    consultationType?: ConsultationType;
-  };
-
-  if (!doctorId || !date || !time || !consultationType) {
-    res.status(400).json({
-      success: false,
-      message: "doctorId, date, time and consultationType are required",
-    });
-    return;
-  }
-
-  if (!Types.ObjectId.isValid(doctorId)) {
-    res.status(400).json({
-      success: false,
-      message: "Invalid doctorId",
-    });
-    return;
-  }
-
-  if (!["video", "offline"].includes(consultationType)) {
-    res.status(400).json({
-      success: false,
-      message: "consultationType must be either video or offline",
-    });
-    return;
-  }
-
-  const normalizedDate = date.trim();
-  const normalizedTime = time.trim();
-
-  const doctor = await Doctor.findById(doctorId).select("availability price");
-
-  if (!doctor) {
-    res.status(404).json({
-      success: false,
-      message: "Doctor not found",
-    });
-    return;
-  }
-
-  const slotExists = doctor.availability.some(
-    (slot) => slot.date === normalizedDate && slot.time === normalizedTime,
-  );
-
-  if (!slotExists) {
-    res.status(400).json({
-      success: false,
-      message: "Requested slot is not available",
-    });
-    return;
-  }
-
-  const existingBooking = await Appointment.findOne({
-    doctorId,
-    date: normalizedDate,
-    time: normalizedTime,
-    status: "booked",
-  });
-
-  if (existingBooking) {
-    res.status(409).json({
-      success: false,
-      message: "This slot is already booked",
-    });
-    return;
-  }
-
-  const appointment = await Appointment.create({
-    doctorId,
+  const input = bookAppointmentSchema.parse(req.body);
+  const appointment = await appointmentService.bookAppointment({
+    ...input,
     patientId: req.user.userId,
-    date: normalizedDate,
-    time: normalizedTime,
-    consultationType,
-    status: "pending_payment",
-    amount: doctor.price,
-    paymentStatus: "pending",
+    date: input.date.trim(),
+    time: input.time.trim(),
   });
 
-  res.status(201).json({
-    success: true,
-    message: "Appointment created. Complete payment to confirm booking.",
-    appointment,
-  });
-};
+  res.status(201).json(
+    createSuccessResponse(
+      {
+        appointment,
+        slotHoldExpiresAt: appointment.lockExpiresAt,
+      },
+      "Appointment created. Complete payment before the slot hold expires.",
+    ),
+  );
+});
 
-export const getMyAppointments = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+export const getMyAppointments = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
-    res.status(401).json({
-      success: false,
-      message: "Unauthorized",
-    });
-    return;
+    throw new AppError("Unauthorized", 401, { code: "UNAUTHORIZED" });
   }
 
-  let query: Record<string, unknown>;
-
-  if (req.user.role === "patient") {
-    query = { patientId: req.user.userId };
-  } else {
-    const doctorProfile = await Doctor.findOne({ userId: req.user.userId }).select("_id");
-
-    if (!doctorProfile) {
-      res.status(404).json({
-        success: false,
-        message: "Doctor profile not found for this user",
-      });
-      return;
-    }
-
-    query = { doctorId: doctorProfile._id };
-  }
-
-  const appointments = await Appointment.find(query)
-    .sort({ date: 1, time: 1 })
-    .populate({ path: "patientId", select: "name email role" })
-    .populate({ path: "doctorId", select: "specialization location price experience userId" });
+  const appointments = await appointmentService.listUserAppointments(req.user);
 
   res.status(200).json({
     success: true,
     count: appointments.length,
     appointments,
   });
-};
+});
 
-export const cancelAppointment = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+export const cancelAppointment = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
-    res.status(401).json({ success: false, message: "Unauthorized" });
-    return;
+    throw new AppError("Unauthorized", 401, { code: "UNAUTHORIZED" });
   }
 
-  const id = getParamId(req.params.id);
-
-  if (!id || !Types.ObjectId.isValid(id)) {
-    res.status(400).json({ success: false, message: "Invalid appointment id" });
-    return;
-  }
-
-  const appointment = await Appointment.findById(id);
-
-  if (!appointment) {
-    res.status(404).json({ success: false, message: "Appointment not found" });
-    return;
-  }
-
-  if (appointment.patientId.toString() !== req.user.userId) {
-    res.status(403).json({ success: false, message: "Forbidden" });
-    return;
-  }
-
-  if (appointment.status === "cancelled") {
-    res.status(400).json({ success: false, message: "Appointment is already cancelled" });
-    return;
-  }
-
-  if (appointment.status === "completed") {
-    res.status(400).json({ success: false, message: "Completed appointments cannot be cancelled" });
-    return;
-  }
-
-  appointment.status = "cancelled";
-  await appointment.save();
-
-  res.status(200).json({
-    success: true,
-    appointment,
+  const parsed = appointmentIdParamSchema.parse({
+    id: getParamId(req.params.id),
   });
-};
+  const appointment = await appointmentService.cancelAppointment({
+    appointmentId: parsed.id,
+    userId: req.user.userId,
+  });
 
-export const rescheduleAppointment = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+  res.status(200).json(createSuccessResponse({ appointment }, "Appointment cancelled"));
+});
+
+export const rescheduleAppointment = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
-    res.status(401).json({ success: false, message: "Unauthorized" });
-    return;
+    throw new AppError("Unauthorized", 401, { code: "UNAUTHORIZED" });
   }
 
-  const id = getParamId(req.params.id);
-
-  if (!id || !Types.ObjectId.isValid(id)) {
-    res.status(400).json({ success: false, message: "Invalid appointment id" });
-    return;
-  }
-
-  const { date, time } = req.body as { date?: string; time?: string };
-
-  if (!date || !time) {
-    res.status(400).json({ success: false, message: "date and time are required" });
-    return;
-  }
-
-  const normalizedDate = date.trim();
-  const normalizedTime = time.trim();
-
-  const appointment = await Appointment.findById(id);
-
-  if (!appointment) {
-    res.status(404).json({ success: false, message: "Appointment not found" });
-    return;
-  }
-
-  if (appointment.patientId.toString() !== req.user.userId) {
-    res.status(403).json({ success: false, message: "Forbidden" });
-    return;
-  }
-
-  if (appointment.status !== "booked") {
-    res.status(400).json({ success: false, message: "Only booked appointments can be rescheduled" });
-    return;
-  }
-
-  const doctor = await Doctor.findById(appointment.doctorId).select("availability");
-
-  if (!doctor) {
-    res.status(404).json({ success: false, message: "Doctor not found" });
-    return;
-  }
-
-  const slotExists = doctor.availability.some(
-    (slot) => slot.date === normalizedDate && slot.time === normalizedTime,
-  );
-
-  if (!slotExists) {
-    res.status(400).json({ success: false, message: "Requested slot is not available" });
-    return;
-  }
-
-  const existingBooking = await Appointment.findOne({
-    _id: { $ne: appointment._id },
-    doctorId: appointment.doctorId,
-    date: normalizedDate,
-    time: normalizedTime,
-    status: "booked",
+  const params = appointmentIdParamSchema.parse({
+    id: getParamId(req.params.id),
+  });
+  const body = rescheduleAppointmentSchema.parse(req.body);
+  const appointment = await appointmentService.rescheduleAppointment({
+    appointmentId: params.id,
+    userId: req.user.userId,
+    date: body.date.trim(),
+    time: body.time.trim(),
   });
 
-  if (existingBooking) {
-    res.status(409).json({ success: false, message: "This slot is already booked" });
-    return;
-  }
-
-  appointment.date = normalizedDate;
-  appointment.time = normalizedTime;
-  await appointment.save();
-
-  res.status(200).json({
-    success: true,
-    appointment,
-  });
-};
+  res.status(200).json(createSuccessResponse({ appointment }, "Appointment rescheduled"));
+});
