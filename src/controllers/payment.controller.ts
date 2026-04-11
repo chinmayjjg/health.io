@@ -6,6 +6,7 @@ import Razorpay from "razorpay";
 import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { Appointment } from "../models/appointment.model";
+import { ConsultationSession } from "../models/consultation-session.model";
 import { appointmentService } from "../services/appointment.service";
 import { createSuccessResponse } from "../utils/api-response";
 import { asyncHandler } from "../utils/async-handler";
@@ -233,6 +234,25 @@ export const verifyPayment = asyncHandler(async (
 
   await appointment.save();
 
+  if (appointment.consultationType === "video") {
+    const existingSession = await ConsultationSession.findOne({
+      appointmentId: appointment._id,
+    });
+
+    if (!existingSession) {
+      const consultationExpiry = new Date(Date.now() + 120 * 60 * 1000);
+      const session = new ConsultationSession({
+        appointmentId: appointment._id,
+        patientId: appointment.patientId,
+        doctorId: appointment.doctorId,
+        meetingLink: appointment.meetingLink,
+        status: "initiated",
+        expiresAt: consultationExpiry,
+      });
+      await session.save();
+    }
+  }
+
   res.status(200).json(
     createSuccessResponse(
       { verified: true, appointment },
@@ -354,6 +374,26 @@ export const handlePaymentWebhook = asyncHandler(async (
         }
 
         await appointment.save({ session });
+
+        if (appointment.consultationType === "video") {
+          const existingSession = await ConsultationSession.findOne({
+            appointmentId: appointment._id,
+          }).session(session);
+
+          if (!existingSession) {
+            const consultationExpiry = new Date(Date.now() + 120 * 60 * 1000);
+            const newSession = new ConsultationSession({
+              appointmentId: appointment._id,
+              patientId: appointment.patientId,
+              doctorId: appointment.doctorId,
+              meetingLink: appointment.meetingLink,
+              status: "initiated",
+              expiresAt: consultationExpiry,
+            });
+            await newSession.save({ session });
+          }
+        }
+
         processed = true;
         return;
       }

@@ -3,6 +3,7 @@ import { healthCheckController } from "../controllers/health.controller";
 import aiRouter from "./ai.routes";
 import appointmentRouter from "./appointment.routes";
 import authRouter from "./auth.routes";
+import consultationRouter from "./consultation.routes";
 import doctorRouter from "./doctor.routes";
 import paymentRouter from "./payment.routes";
 
@@ -13,6 +14,7 @@ router.use("/api/auth", authRouter);
 router.use("/api/doctors", doctorRouter);
 router.use("/api/appointments", appointmentRouter);
 router.use("/api/payments", paymentRouter);
+router.use("/api/consultations", consultationRouter);
 router.use("/api/ai", aiRouter);
 
 export default router;
