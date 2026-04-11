@@ -7,12 +7,14 @@ export type AppointmentStatus =
   | "completed";
 
 export type PaymentStatus = "pending" | "paid" | "failed";
+export type ConsultationType = "video" | "offline";
 
 export interface IAppointment extends Document {
   doctorId: Types.ObjectId;
   patientId: Types.ObjectId;
   date: string;
   time: string;
+  consultationType: ConsultationType;
   status: AppointmentStatus;
   amount: number;
   paymentStatus: PaymentStatus;
@@ -43,6 +45,11 @@ const appointmentSchema = new Schema<IAppointment>(
       type: String,
       required: true,
       trim: true,
+    },
+    consultationType: {
+      type: String,
+      enum: ["video", "offline"],
+      required: true,
     },
     status: {
       type: String,

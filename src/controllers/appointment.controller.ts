@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { Types } from "mongoose";
-import { Appointment } from "../models/appointment.model";
+import { Appointment, ConsultationType } from "../models/appointment.model";
 import { Doctor } from "../models/doctor.model";
 
 const getParamId = (value: string | string[] | undefined): string | null => {
@@ -23,16 +23,17 @@ export const bookAppointment = async (
     return;
   }
 
-  const { doctorId, date, time } = req.body as {
+  const { doctorId, date, time, consultationType } = req.body as {
     doctorId?: string;
     date?: string;
     time?: string;
+    consultationType?: ConsultationType;
   };
 
-  if (!doctorId || !date || !time) {
+  if (!doctorId || !date || !time || !consultationType) {
     res.status(400).json({
       success: false,
-      message: "doctorId, date and time are required",
+      message: "doctorId, date, time and consultationType are required",
     });
     return;
   }
@@ -41,6 +42,14 @@ export const bookAppointment = async (
     res.status(400).json({
       success: false,
       message: "Invalid doctorId",
+    });
+    return;
+  }
+
+  if (!["video", "offline"].includes(consultationType)) {
+    res.status(400).json({
+      success: false,
+      message: "consultationType must be either video or offline",
     });
     return;
   }
@@ -90,6 +99,7 @@ export const bookAppointment = async (
     patientId: req.user.userId,
     date: normalizedDate,
     time: normalizedTime,
+    consultationType,
     status: "pending_payment",
     amount: doctor.price,
     paymentStatus: "pending",
