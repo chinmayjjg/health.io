@@ -60,6 +60,7 @@ export const authorizeRoles = (...allowedRoles: UserRole[]) => {
         success: false,
         message: "Unauthorized",
       });
+    
       return;
     }
 
