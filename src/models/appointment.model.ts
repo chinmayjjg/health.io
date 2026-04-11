@@ -1,6 +1,12 @@
 import { Document, Model, Schema, Types, model } from "mongoose";
 
-export type AppointmentStatus = "booked" | "cancelled" | "completed";
+export type AppointmentStatus =
+  | "pending_payment"
+  | "booked"
+  | "cancelled"
+  | "completed";
+
+export type PaymentStatus = "pending" | "paid" | "failed";
 
 export interface IAppointment extends Document {
   doctorId: Types.ObjectId;
@@ -8,6 +14,10 @@ export interface IAppointment extends Document {
   date: string;
   time: string;
   status: AppointmentStatus;
+  amount: number;
+  paymentStatus: PaymentStatus;
+  paymentOrderId?: string;
+  paymentId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,9 +46,28 @@ const appointmentSchema = new Schema<IAppointment>(
     },
     status: {
       type: String,
-      enum: ["booked", "cancelled", "completed"],
-      default: "booked",
+      enum: ["pending_payment", "booked", "cancelled", "completed"],
+      default: "pending_payment",
       required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed"],
+      default: "pending",
+      required: true,
+    },
+    paymentOrderId: {
+      type: String,
+      trim: true,
+    },
+    paymentId: {
+      type: String,
+      trim: true,
     },
   },
   {

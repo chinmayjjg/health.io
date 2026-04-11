@@ -48,7 +48,7 @@ export const bookAppointment = async (
   const normalizedDate = date.trim();
   const normalizedTime = time.trim();
 
-  const doctor = await Doctor.findById(doctorId).select("availability");
+  const doctor = await Doctor.findById(doctorId).select("availability price");
 
   if (!doctor) {
     res.status(404).json({
@@ -90,11 +90,14 @@ export const bookAppointment = async (
     patientId: req.user.userId,
     date: normalizedDate,
     time: normalizedTime,
-    status: "booked",
+    status: "pending_payment",
+    amount: doctor.price,
+    paymentStatus: "pending",
   });
 
   res.status(201).json({
     success: true,
+    message: "Appointment created. Complete payment to confirm booking.",
     appointment,
   });
 };
