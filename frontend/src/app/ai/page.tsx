@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { apiPost } from "@/lib/api";
+import { apiAuthPost } from "@/lib/api";
+import { useRequireAuth } from "@/lib/useRequireAuth";
 
 type SuggestedDoctorUser = {
   _id: string;
@@ -37,10 +38,15 @@ type AiSuggestResponse = {
 };
 
 export default function AiPage() {
+  const authorized = useRequireAuth();
   const [symptoms, setSymptoms] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<AiSuggestResponse | null>(null);
+
+  if (!authorized) {
+    return null;
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -48,7 +54,7 @@ export default function AiPage() {
     setError("");
 
     try {
-      const data = await apiPost<AiSuggestResponse>("/api/ai/suggest-doctor", {
+      const data = await apiAuthPost<AiSuggestResponse>("/api/ai/suggest-doctor", {
         symptoms,
       });
       setResult(data);

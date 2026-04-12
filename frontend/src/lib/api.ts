@@ -1,3 +1,5 @@
+import { clearAuthToken, getAuthToken, saveAuthToken } from "@/lib/auth";
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
@@ -32,6 +34,67 @@ const parseResponse = async <TResponse>(response: Response): Promise<TResponse> 
   return data;
 };
 
+const refreshAccessToken = async (): Promise<string | null> => {
+  const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    clearAuthToken();
+    return null;
+  }
+
+  const data = (await response.json()) as { token?: string; accessToken?: string };
+  const token = data.token || data.accessToken || null;
+
+  if (token) {
+    saveAuthToken(token);
+  }
+
+  return token;
+};
+
+const fetchWithAuth = async (
+  path: string,
+  init: RequestInit,
+  retry = true,
+): Promise<Response> => {
+  const token = getAuthToken();
+
+  const headers = new Headers(init.headers ?? undefined);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    credentials: "include",
+    headers,
+  });
+
+  if (response.status === 401 && retry) {
+    const newToken = await refreshAccessToken();
+    if (!newToken) {
+      throw new Error("Session expired. Please log in again.");
+    }
+
+    headers.set("Authorization", `Bearer ${newToken}`);
+    const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      credentials: "include",
+      headers,
+    });
+
+    return retryResponse;
+  }
+
+  return response;
+};
+
 export const apiGet = async <TResponse>(
   path: string,
   query?: Record<string, string>,
@@ -58,17 +121,24 @@ export const apiPost = async <TResponse>(
   return parseResponse<TResponse>(response);
 };
 
+export const apiAuthGet = async <TResponse>(
+  path: string,
+  query?: Record<string, string>,
+): Promise<TResponse> => {
+  const response = await fetchWithAuth(`${path}${toSearchParams(query)}`, {
+    method: "GET",
+  });
+  return parseResponse<TResponse>(response);
+};
+
 export const apiAuthPost = async <TResponse>(
   path: string,
   body: Record<string, unknown>,
-  token: string,
 ): Promise<TResponse> => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithAuth(path, {
     method: "POST",
-    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
   });

@@ -15,3 +15,11 @@ export const getAuthToken = (): string | null => {
 
   return localStorage.getItem(AUTH_TOKEN_KEY);
 };
+
+export const clearAuthToken = (): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+};

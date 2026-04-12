@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiAuthPost, apiGet } from "@/lib/api";
-import { getAuthToken } from "@/lib/auth";
+import { useRequireAuth } from "@/lib/useRequireAuth";
 
 type DoctorUser = {
   _id: string;
@@ -41,6 +41,7 @@ type BookAppointmentResponse = {
 };
 
 export default function BookingPage() {
+  const authorized = useRequireAuth();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -60,6 +61,10 @@ export default function BookingPage() {
   );
 
   useEffect(() => {
+    if (!authorized) {
+      return;
+    }
+
     const loadDoctors = async () => {
       setLoadingDoctors(true);
       setError("");
@@ -77,7 +82,7 @@ export default function BookingPage() {
     };
 
     void loadDoctors();
-  }, []);
+  }, [authorized]);
 
   useEffect(() => {
     const loadSlots = async () => {
@@ -113,12 +118,6 @@ export default function BookingPage() {
     setError("");
     setSuccess("");
 
-    const token = getAuthToken();
-    if (!token) {
-      setError("Please login first. JWT token is missing in localStorage.");
-      return;
-    }
-
     if (!selectedDoctorId || !selectedSlot) {
       setError("Please select a doctor and slot.");
       return;
@@ -137,7 +136,6 @@ export default function BookingPage() {
           time,
           consultationType,
         },
-        token,
       );
 
       const holdMessage = response.data?.slotHoldExpiresAt
@@ -152,6 +150,10 @@ export default function BookingPage() {
       setSubmitting(false);
     }
   };
+
+  if (!authorized) {
+    return null;
+  }
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-8">

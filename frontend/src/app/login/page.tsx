@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { apiPost } from "@/lib/api";
 import { saveAuthToken } from "@/lib/auth";
@@ -17,6 +18,8 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  const router = useRouter();
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
@@ -30,7 +33,8 @@ export default function LoginPage() {
       });
 
       saveAuthToken(data.token);
-      setSuccessMessage("Login successful. JWT saved in localStorage.");
+      setSuccessMessage("Login successful. Redirecting...");
+      router.push("/doctors");
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : "Login failed";

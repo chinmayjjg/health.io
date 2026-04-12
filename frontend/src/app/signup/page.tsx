@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { apiPost } from "@/lib/api";
 import { saveAuthToken } from "@/lib/auth";
@@ -21,6 +22,8 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  const router = useRouter();
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
@@ -36,7 +39,8 @@ export default function SignupPage() {
       });
 
       saveAuthToken(data.token);
-      setSuccessMessage("Signup successful. JWT saved in localStorage.");
+      setSuccessMessage("Signup successful. Redirecting...");
+      router.push("/doctors");
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : "Signup failed";

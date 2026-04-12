@@ -8,6 +8,7 @@ import pinoHttp from "pino-http";
 import type { RequestHandler } from "express";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
+import { sanitizeRequest } from "./sanitize.middleware";
 
 const allowedOrigins = new Set([
   env.FRONTEND_URL,
@@ -59,4 +60,5 @@ export const securityMiddleware: RequestHandler[] = [
   }),
   express.urlencoded({ extended: true, limit: "1mb" }),
   cookieParser(),
+  sanitizeRequest,
 ];

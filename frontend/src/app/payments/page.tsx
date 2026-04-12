@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { apiAuthPost } from "@/lib/api";
-import { getAuthToken } from "@/lib/auth";
+import { useRequireAuth } from "@/lib/useRequireAuth";
 
 type CreateOrderResponse = {
   success: boolean;
@@ -47,6 +47,7 @@ const loadRazorpayScript = (): Promise<boolean> => {
 };
 
 export default function PaymentsPage() {
+  const authorized = useRequireAuth();
   const [appointmentId, setAppointmentId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -54,6 +55,12 @@ export default function PaymentsPage() {
 
   const handlePayNow = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!authorized) {
+      setError("You must be signed in to make a payment.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setSuccess("");
@@ -61,11 +68,6 @@ export default function PaymentsPage() {
     try {
       if (!RAZORPAY_KEY_ID) {
         throw new Error("Missing NEXT_PUBLIC_RAZORPAY_KEY_ID in frontend env");
-      }
-
-      const token = getAuthToken();
-      if (!token) {
-        throw new Error("Please login first. JWT token is missing in localStorage.");
       }
 
       const sdkLoaded = await loadRazorpayScript();
@@ -76,7 +78,6 @@ export default function PaymentsPage() {
       const createOrderData = await apiAuthPost<CreateOrderResponse>(
         "/api/payments/create-order",
         { appointmentId },
-        token,
       );
 
       const razorpay = new window.Razorpay({
@@ -107,7 +108,6 @@ export default function PaymentsPage() {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
               },
-              token,
             );
 
             setSuccess(verifyData.message || "Payment verified successfully.");
@@ -144,6 +144,10 @@ export default function PaymentsPage() {
       setLoading(false);
     }
   };
+
+  if (!authorized) {
+    return null;
+  }
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 p-8">
