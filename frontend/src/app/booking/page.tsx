@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiAuthPost, apiGet } from "@/lib/api";
 import { useRequireAuth } from "@/lib/useRequireAuth";
+import { motion } from "framer-motion";
+import { Calendar, User, Video, MapPin, DollarSign, ArrowRight, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
 
 type DoctorUser = {
   _id: string;
@@ -15,6 +17,7 @@ type Doctor = {
   specialization: string;
   location: string;
   price: number;
+  experience: number;
 };
 
 type Slot = {
@@ -46,9 +49,7 @@ export default function BookingPage() {
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState("");
-  const [consultationType, setConsultationType] = useState<"video" | "offline">(
-    "offline",
-  );
+  const [consultationType, setConsultationType] = useState<"video" | "offline">("offline");
   const [loadingDoctors, setLoadingDoctors] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -61,9 +62,7 @@ export default function BookingPage() {
   );
 
   useEffect(() => {
-    if (!authorized) {
-      return;
-    }
+    if (!authorized) return;
 
     const loadDoctors = async () => {
       setLoadingDoctors(true);
@@ -73,8 +72,7 @@ export default function BookingPage() {
         const data = await apiGet<DoctorsResponse>("/api/doctors");
         setDoctors(data.doctors);
       } catch (loadError) {
-        const message =
-          loadError instanceof Error ? loadError.message : "Failed to load doctors";
+        const message = loadError instanceof Error ? loadError.message : "Failed to load doctors";
         setError(message);
       } finally {
         setLoadingDoctors(false);
@@ -101,8 +99,7 @@ export default function BookingPage() {
         const data = await apiGet<SlotsResponse>(`/api/doctors/${selectedDoctorId}/slots`);
         setSlots(data.slots);
       } catch (loadError) {
-        const message =
-          loadError instanceof Error ? loadError.message : "Failed to load slots";
+        const message = loadError instanceof Error ? loadError.message : "Failed to load slots";
         setError(message);
         setSlots([]);
       } finally {
@@ -128,23 +125,19 @@ export default function BookingPage() {
     setSubmitting(true);
 
     try {
-      const response = await apiAuthPost<BookAppointmentResponse>(
-        "/api/appointments/book",
-        {
-          doctorId: selectedDoctorId,
-          date,
-          time,
-          consultationType,
-        },
-      );
+      const response = await apiAuthPost<BookAppointmentResponse>("/api/appointments/book", {
+        doctorId: selectedDoctorId,
+        date,
+        time,
+        consultationType,
+      });
 
       const holdMessage = response.data?.slotHoldExpiresAt
         ? ` Slot held until ${new Date(response.data.slotHoldExpiresAt).toLocaleString()}.`
         : "";
       setSuccess((response.message || "Booking request created successfully.") + holdMessage);
     } catch (submitError) {
-      const message =
-        submitError instanceof Error ? submitError.message : "Booking failed";
+      const message = submitError instanceof Error ? submitError.message : "Booking failed";
       setError(message);
     } finally {
       setSubmitting(false);
@@ -156,104 +149,187 @@ export default function BookingPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-8">
-      <header>
-        <h1 className="text-3xl font-semibold">Book Appointment</h1>
-        <p className="mt-2 text-gray-600">
-          Select doctor, pick a slot, and submit your booking request.
-        </p>
-      </header>
+    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-24 sm:px-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center"
+      >
+        <h1 className="text-4xl font-bold text-white">Book Appointment</h1>
+        <p className="mt-2 text-gray-400">Select doctor, pick a slot, and book your appointment</p>
+      </motion.div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border p-5">
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="doctor">
-            Doctor
-          </label>
-          <select
-            id="doctor"
-            value={selectedDoctorId}
-            onChange={(e) => setSelectedDoctorId(e.target.value)}
-            className="w-full rounded-md border px-3 py-2"
-            disabled={loadingDoctors || doctors.length === 0}
-            required
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-300" htmlFor="doctor">
+              Select Doctor
+            </label>
+            <div className="grid gap-3 md:grid-cols-2">
+              {doctors.map((doctor) => (
+                <button
+                  key={doctor._id}
+                  type="button"
+                  onClick={() => setSelectedDoctorId(doctor._id)}
+                  className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-all ${
+                    selectedDoctorId === doctor._id
+                      ? "border-emerald-500 bg-emerald-500/20"
+                      : "border-white/10 bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-500/20">
+                    <User className="h-6 w-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-white">
+                      Dr. {doctor.userId?.name || "Unknown"}
+                    </p>
+                    <p className="text-sm text-emerald-400">{doctor.specialization}</p>
+                    <p className="flex items-center gap-2 text-xs text-gray-400">
+                      <MapPin className="h-3 w-3" />
+                      {doctor.location} • {doctor.experience} years
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {selectedDoctor && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4"
+            >
+              <div>
+                <p className="text-sm text-gray-400">Consultation Fee</p>
+                <p className="text-2xl font-bold text-white">Rs. {selectedDoctor.price}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Video className="h-5 w-5 text-emerald-400" />
+                <span className="text-sm text-emerald-400">
+                  {consultationType === "video" ? "Video Consultation" : "Offline Visit"}
+                </span>
+              </div>
+            </motion.div>
+          )}
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-300" htmlFor="slot">
+              Select Date & Time
+            </label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {loadingSlots ? (
+                <div className="col-span-full flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+                </div>
+              ) : slots.length === 0 ? (
+                <p className="col-span-full py-8 text-center text-gray-400">
+                  {selectedDoctorId ? "No slots available" : "Select a doctor first"}
+                </p>
+              ) : (
+                slots.map((slot) => {
+                  const key = `${slot.date}|${slot.time}`;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSelectedSlot(key)}
+                      className={`flex flex-col items-center rounded-xl border p-3 text-center transition-all ${
+                        selectedSlot === key
+                          ?="border-emerald-500 bg-emerald-500/20 text-emerald-400"
+                          : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
+                      }`}
+                    >
+                      <Calendar className="h-5 w-5" />
+                      <span className="text-sm font-medium">{slot.date}</span>
+                      <span className="text-xs">{slot.time}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-300" htmlFor="consultationType">
+              Consultation Type
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setConsultationType("offline")}
+                className={`flex items-center justify-center gap-2 rounded-xl border p-4 transition-all ${
+                  consultationType === "offline"
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
+                    : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
+                }`}
+              >
+                <User className="h-5 w-5" />
+                Offline Visit
+              </button>
+              <button
+                type="button"
+                onClick={() => setConsultationType("video")}
+                className={`flex items-center justify-center gap-2 rounded-xl border p-4 transition-all ${
+                  consultationType === "video"
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
+                    : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
+                }`}
+              >
+                <Video className="h-5 w-5" />
+                Video Call
+              </button>
+            </div>
+          </div>
+
+          {error ? (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3"
+            >
+              <AlertCircle className="h-5 w-5 text-red-400" />
+              <p className="text-sm text-red-400">{error}</p>
+            </motion.div>
+          ) : null}
+
+          {success ? (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3"
+            >
+              <CheckCircle className="h-5 w-5 text-emerald-400" />
+              <p className="text-sm text-emerald-400">{success}</p>
+            </motion.div>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={submitting || loadingDoctors || !selectedDoctorId || !selectedSlot}
+            className="flex w-full items-center justify-center rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-emerald-600 disabled:opacity-60"
           >
-            <option value="">Select a doctor</option>
-            {doctors.map((doctor) => (
-              <option key={doctor._id} value={doctor._id}>
-                Dr. {doctor.userId?.name || "Unknown"} - {doctor.specialization} ({doctor.location})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="slot">
-            Slot
-          </label>
-          <select
-            id="slot"
-            value={selectedSlot}
-            onChange={(e) => setSelectedSlot(e.target.value)}
-            className="w-full rounded-md border px-3 py-2"
-            disabled={!selectedDoctorId || loadingSlots || slots.length === 0}
-            required
-          >
-            <option value="">
-              {loadingSlots ? "Loading slots..." : "Select a slot"}
-            </option>
-            {slots.map((slot) => {
-              const key = `${slot.date}|${slot.time}`;
-              return (
-                <option key={key} value={key}>
-                  {slot.date} at {slot.time}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="consultationType">
-            Consultation Type
-          </label>
-          <select
-            id="consultationType"
-            value={consultationType}
-            onChange={(e) => setConsultationType(e.target.value as "video" | "offline")}
-            className="w-full rounded-md border px-3 py-2"
-            required
-          >
-            <option value="offline">Offline</option>
-            <option value="video">Video</option>
-          </select>
-        </div>
-
-        {selectedDoctor ? (
-          <p className="text-sm text-gray-600">
-            Consultation fee: Rs. {selectedDoctor.price}
-          </p>
-        ) : null}
-
-        {error ? (
-          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
-        ) : null}
-
-        {success ? (
-          <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-            {success}
-          </p>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={submitting || loadingDoctors}
-          className="w-full rounded-md bg-black px-4 py-2 text-white disabled:opacity-60"
-        >
-          {submitting ? "Submitting..." : "Book Appointment"}
-        </button>
-      </form>
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Booking...
+              </>
+            ) : (
+              <>
+                <Calendar className="mr-2 h-4 w-4" />
+                Book Appointment
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </button>
+        </form>
+      </motion.div>
     </main>
   );
 }

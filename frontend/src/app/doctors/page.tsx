@@ -2,6 +2,21 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { apiGet } from "@/lib/api";
+import { motion } from "framer-motion";
+import {
+  Search,
+  MapPin,
+  Calendar,
+  DollarSign,
+  Star,
+  Filter,
+  X,
+  User,
+  Award,
+  Clock,
+  ArrowRight,
+} from "lucide-react";
+import Link from "next/link";
 
 type DoctorUser = {
   _id: string;
@@ -45,6 +60,7 @@ export default function DoctorsPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
 
   const fetchDoctors = async (filters?: {
     q?: string;
@@ -90,6 +106,7 @@ export default function DoctorsPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setShowFilters(false);
     await fetchDoctors({
       q: query,
       specialization,
@@ -122,6 +139,9 @@ export default function DoctorsPage() {
     });
   };
 
+  const hasActiveFilters =
+    query || specialization || location || minExperience || maxPrice;
+
   const goToPage = async (nextPage: number) => {
     await fetchDoctors({
       q: query,
@@ -136,145 +156,270 @@ export default function DoctorsPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 p-8">
-      <header>
-        <h1 className="text-3xl font-semibold">Find Doctors</h1>
-        <p className="mt-2 text-gray-600">
-          Browse doctors with indexed search, smarter filters, and paginated results.
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-24 sm:px-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center"
+      >
+        <h1 className="text-4xl font-bold text-white">Find Your Doctor</h1>
+        <p className="mt-2 text-gray-400">
+          Browse and connect with verified healthcare professionals
         </p>
-      </header>
+      </motion.div>
 
-      <form onSubmit={handleSubmit} className="grid gap-3 rounded-lg border p-4 md:grid-cols-6">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by specialty or city"
-          className="rounded-md border px-3 py-2 outline-none focus:border-black md:col-span-2"
-        />
-        <input
-          type="text"
-          value={specialization}
-          onChange={(e) => setSpecialization(e.target.value)}
-          placeholder="Specialization (e.g. cardiologist)"
-          className="rounded-md border px-3 py-2 outline-none focus:border-black"
-        />
-        <input
-          type="text"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          placeholder="Location (e.g. Mumbai)"
-          className="rounded-md border px-3 py-2 outline-none focus:border-black"
-        />
-        <input
-          type="number"
-          min="0"
-          value={minExperience}
-          onChange={(e) => setMinExperience(e.target.value)}
-          placeholder="Min years"
-          className="rounded-md border px-3 py-2 outline-none focus:border-black"
-        />
-        <input
-          type="number"
-          min="0"
-          value={maxPrice}
-          onChange={(e) => setMaxPrice(e.target.value)}
-          placeholder="Max fee"
-          className="rounded-md border px-3 py-2 outline-none focus:border-black"
-        />
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="rounded-md border px-3 py-2 outline-none focus:border-black"
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md"
+      >
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-4 lg:flex-row lg:items-center"
         >
-          <option value="createdAt">Newest</option>
-          <option value="experience">Experience</option>
-          <option value="price">Price</option>
-        </select>
-        <select
-          value={sortOrder}
-          onChange={(e) => setSortOrder(e.target.value)}
-          className="rounded-md border px-3 py-2 outline-none focus:border-black"
-        >
-          <option value="desc">High to low</option>
-          <option value="asc">Low to high</option>
-        </select>
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex-1 rounded-md bg-black px-4 py-2 text-white disabled:opacity-60"
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by specialty, condition, or doctor name..."
+              className="w-full rounded-xl border border-white/10 bg-black/20 py-3 pl-10 pr-4 text-white placeholder-gray-500 outline-none transition-all focus:border-emerald-500/50"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center rounded-xl border border-white/10 px-4 py-3 text-sm font-medium transition-all ${
+                showFilters || hasActiveFilters
+                  ? "bg-emerald-500/20 text-emerald-400"
+                  : "bg-white/5 text-gray-300 hover:bg-white/10"
+              }`}
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              Filters
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center rounded-xl bg-emerald-500 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-emerald-600 disabled:opacity-60"
+            >
+              {loading ? "Searching..." : "Search"}
+            </button>
+          </div>
+        </form>
+
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-4 grid gap-4 border-t border-white/10 pt-4 md:grid-cols-4"
           >
-            {loading ? "Searching..." : "Search"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void clearFilters()}
-            disabled={loading}
-            className="rounded-md border px-4 py-2 disabled:opacity-60"
-          >
-            Clear
-          </button>
-        </div>
-      </form>
+            <input
+              type="text"
+              value={specialization}
+              onChange={(e) => setSpecialization(e.target.value)}
+              placeholder="Specialization"
+              className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-white placeholder-gray-500 outline-none focus:border-emerald-500/50"
+            />
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Location"
+              className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-white placeholder-gray-500 outline-none focus:border-emerald-500/50"
+            />
+            <input
+              type="number"
+              min="0"
+              value={minExperience}
+              onChange={(e) => setMinExperience(e.target.value)}
+              placeholder="Min Experience (years)"
+              className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-white placeholder-gray-500 outline-none focus:border-emerald-500/50"
+            />
+            <input
+              type="number"
+              min="0"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              placeholder="Max Fee (Rs)"
+              className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-white placeholder-gray-500 outline-none focus:border-emerald-500/50"
+            />
+            <div className="flex gap-2 md:col-span-4">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-white outline-none focus:border-emerald-500/50"
+              >
+                <option value="createdAt" className="bg-black">
+                  Newest
+                </option>
+                <option value="experience" className="bg-black">
+                  Experience
+                </option>
+                <option value="price" className="bg-black">
+                  Price
+                </option>
+              </select>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                className="flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-white outline-none focus:border-emerald-500/50"
+              >
+                <option value="desc" className="bg-black">
+                  High to Low
+                </option>
+                <option value="asc" className="bg-black">
+                  Low to High
+                </option>
+              </select>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={() => void clearFilters()}
+                  className="flex items-center rounded-xl border border-red-500/30 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10"
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Clear
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
 
       {error ? (
-        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+        >
           {error}
-        </p>
+        </motion.p>
       ) : null}
 
-      <div className="flex items-center justify-between text-sm text-gray-600">
+      <div className="flex items-center justify-between text-sm text-gray-400">
         <p>
-          Showing {doctors.length} of {total} doctors
+          Showing <span className="text-white">{doctors.length}</span> of{" "}
+          <span className="text-white">{total}</span> doctors
         </p>
         <p>
-          Page {page} of {totalPages}
+          Page <span className="text-white">{page}</span> of{" "}
+          <span className="text-white">{totalPages}</span>
         </p>
       </div>
 
       <section className="grid gap-4 md:grid-cols-2">
-        {doctors.map((doctor) => (
-          <article key={doctor._id} className="rounded-lg border p-4">
-            <h2 className="text-lg font-semibold">Dr. {doctor.userId?.name || "Unknown"}</h2>
-            <p className="mt-1 text-sm text-gray-600">{doctor.specialization}</p>
-            <div className="mt-3 space-y-1 text-sm">
-              <p>
-                <span className="font-medium">Location:</span> {doctor.location}
-              </p>
-              <p>
-                <span className="font-medium">Experience:</span> {doctor.experience} years
-              </p>
-              <p>
-                <span className="font-medium">Consultation Fee:</span> Rs. {doctor.price}
-              </p>
+        {doctors.map((doctor, i) => (
+          <motion.div
+            key={doctor._id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="group rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all hover:border-emerald-500/50 hover:bg-white/10"
+          >
+            <div className="flex gap-4">
+              <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-500/20">
+                <User className="h-8 w-8 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white group-hover:text-emerald-400 transition-colors">
+                  Dr. {doctor.userId?.name || "Unknown"}
+                </h2>
+                <p className="text-sm text-emerald-400">{doctor.specialization}</p>
+                <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-4 w-4" />
+                    {doctor.location}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Award className="h-4 w-4" />
+                    {doctor.experience} years
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <DollarSign className="h-4 w-4" />
+                    Rs. {doctor.price}
+                  </span>
+                </div>
+              </div>
             </div>
-          </article>
+            <div className="mt-4 flex gap-2">
+              <Link
+                href={`/booking?doctor=${doctor._id}`}
+                className="flex flex-1 items-center justify-center rounded-xl bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-emerald-600"
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                Book Appointment
+              </Link>
+              <button className="flex items-center rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-gray-300 transition-all hover:bg-white/10">
+                <Star className="mr-2 h-4 w-4" />
+                View Profile
+              </button>
+            </div>
+          </motion.div>
         ))}
       </section>
 
       {!loading && doctors.length === 0 && !error ? (
-        <p className="text-sm text-gray-600">No doctors found for the selected filters.</p>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center justify-center py-12 text-center"
+        >
+          <User className="h-16 w-16 text-gray-600" />
+          <p className="mt-4 text-lg text-gray-400">No doctors found</p>
+          <p className="text-sm text-gray-500">Try adjusting your search filters</p>
+          <button
+            onClick={() => void clearFilters()}
+            className="mt-4 text-sm text-emerald-400 hover:underline"
+          >
+            Clear all filters
+          </button>
+        </motion.div>
       ) : null}
 
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => void goToPage(page - 1)}
-          disabled={loading || page <= 1}
-          className="rounded-md border px-4 py-2 disabled:opacity-50"
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          onClick={() => void goToPage(page + 1)}
-          disabled={loading || page >= totalPages}
-          className="rounded-md border px-4 py-2 disabled:opacity-50"
-        >
-          Next
-        </button>
-      </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <button
+            type="button"
+            onClick={() => void goToPage(page - 1)}
+            disabled={loading || page <= 1}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-300 transition-all hover:bg-white/10 disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const pageNum = i + 1;
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => void goToPage(pageNum)}
+                  className={`rounded-lg px-3 py-1 text-sm font-medium transition-all ${
+                    page === pageNum
+                      ? "bg-emerald-500 text-white"
+                      : "text-gray-400 hover:bg-white/10"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => void goToPage(page + 1)}
+            disabled={loading || page >= totalPages}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-300 transition-all hover:bg-white/10 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </main>
   );
 }
