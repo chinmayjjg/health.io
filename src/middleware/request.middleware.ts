@@ -35,7 +35,7 @@ export const securityMiddleware: RequestHandler[] = [
   helmet(),
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.has(origin)) {
+      if (!origin || allowedOrigins.has(origin) || origin.endsWith(".vercel.app")) {
         callback(null, true);
         return;
       }
