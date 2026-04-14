@@ -2,5 +2,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm install",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_API_BASE_URL": "https://health-io-8exa.onrender.com"
+  }
 }

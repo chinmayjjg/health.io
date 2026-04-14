@@ -30,9 +30,15 @@ const sanitizeObject = (value: unknown): unknown => {
 
 export const sanitizeRequest: RequestHandler = (req, _res, next) => {
   try {
-    req.body = sanitizeObject(req.body) as any;
-    req.query = sanitizeObject(req.query) as any;
-    req.params = sanitizeObject(req.params) as any;
+    if (req.body) {
+      Object.assign(req.body, sanitizeObject(req.body));
+    }
+    if (req.query) {
+      Object.assign(req.query, sanitizeObject(req.query));
+    }
+    if (req.params) {
+      Object.assign(req.params, sanitizeObject(req.params));
+    }
     next();
   } catch (error) {
     next(error);
