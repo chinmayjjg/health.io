@@ -1,0 +1,16 @@
+{
+  "name": "health-io-backend",
+  "build": { "env": { "NODE_VERSION": "20" } },
+  "buildCommand": "npm run build:backend",
+  "startCommand": "node dist/server.js",
+  "env":
+    {
+      "PORT": { "fromSecret": "PORT" },
+      "MONGO_URI": { "fromSecret": "MONGO_URI" },
+      "JWT_SECRET": { "fromSecret": "JWT_SECRET" },
+      "RAZORPAY_KEY_ID": { "fromSecret": "RAZORPAY_KEY_ID" },
+      "RAZORPAY_KEY_SECRET": { "fromSecret": "RAZORPAY_KEY_SECRET" },
+      "GROQ_API_KEY": { "fromSecret": "GROQ_API_KEY" },
+      "GROQ_MODEL": { "fromSecret": "GROQ_MODEL" },
+    },
+}
