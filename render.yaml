@@ -1,7 +1,7 @@
 {
   "name": "health-io-backend",
   "build": { "env": { "NODE_VERSION": "20" } },
-  "buildCommand": "npm run build:backend",
+  "buildCommand": "npm ci && npm run build:backend",
   "startCommand": "node dist/server.js",
   "env":
     {
