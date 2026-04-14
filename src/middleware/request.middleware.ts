@@ -14,6 +14,7 @@ const allowedOrigins = new Set([
   env.FRONTEND_URL,
   "http://localhost:3000",
   "http://127.0.0.1:3000",
+  "https://health-io-frontend-ijnpekln1-chinmayjjgs-projects.vercel.app",
 ]);
 
 export const requestLogger = pinoHttp({
@@ -24,7 +25,8 @@ export const requestLogger = pinoHttp({
     res.setHeader("x-request-id", requestId);
     return requestId;
   },
-  customSuccessMessage: (req, res) => `${req.method} ${req.url} completed with ${res.statusCode}`,
+  customSuccessMessage: (req, res) =>
+    `${req.method} ${req.url} completed with ${res.statusCode}`,
   customErrorMessage: (req, res, error) =>
     `${req.method} ${req.url} failed with ${res.statusCode}: ${error.message}`,
 });
